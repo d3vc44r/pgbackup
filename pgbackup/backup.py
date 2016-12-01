@@ -214,12 +214,14 @@ class Backup(object):
 
     @staticmethod
     def _validate_conn_info(conn_info):
-        for key in ('hostname', 'port', 'username'):
-            if key not in conn_info:
-                raise ValueError('Key `{}` not found in conn_info'.format(key))
+        if not isinstance(conn_info, dict):
+            raise ValueError('Invalid conn_info (not a dict)')
+        for key in conn_info.keys():
+            if key not in ('hostname', 'port', 'username'):
+                raise ValueError('Invalid key `{}` found in conn_info'.format(key))
 
     def __init__(self, backup_dir=None, backup_type=None, database=None,
-                 schema_spec=None, conn_info=None, filename=None,
+                 schema_spec=None, conn_info={}, filename=None,
                  today=None, empty=False):
         if filename:
             # Initialize from the name of an existing backup file.
@@ -239,8 +241,8 @@ class Backup(object):
             self.backup_dir = backup_dir
             self._validate_conn_info(conn_info)
             self.conn_info = conn_info
-            self.hostname_label = hostname_label(conn_info['hostname'])
-            self.port_label = port_label(conn_info['port'])
+            self.hostname_label = hostname_label(conn_info.get('hostname', None))
+            self.port_label = port_label(conn_info.get('port', None))
 
             self.database_label = database_label(database)
             self.empty = empty
@@ -325,12 +327,7 @@ class Backup(object):
 
     @property
     def date_obj(self):
-        """Return date object representation of the self.date string.
-
-        If self.date is '*', return '*'.
-        """
-        if self.date == '*':
-            return '*'
+        """Return date object representation of the self.date string."""
         return datetime.datetime.strptime(self.date, Backup.DATE_FORMAT).date()
 
     def week_number(self):

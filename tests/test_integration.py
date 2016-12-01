@@ -2,19 +2,20 @@ import collections
 import datetime
 import os
 import shutil
-import subprocess
 import tempfile
 import unittest
+
+import re
+
 try:
     from unittest.mock import patch
 except ImportError:
     from mock import patch
 import testing.postgresql
 
-from pgbackup import backup
 from pgbackup import main
 from pgbackup import pg_utils
-
+from pgbackup import backup
 
 DAYS_PER_WEEK = 7
 DAYS_PER_MONTH = 30.42
@@ -23,12 +24,12 @@ DAYS_PER_MONTH = 30.42
 Postgresql = testing.postgresql.PostgresqlFactory(cache_initialized_db=True)
 
 
-def tearDownModule(self):
+def tearDownModule():
     # clear cached database at end of tests
     Postgresql.clear_cache()
 
 
-class TestBackup(unittest.TestCase):
+class TestIntegration(unittest.TestCase):
     def setUp(self):
         self.postgresql = Postgresql()
         dsn = self.postgresql.dsn()
@@ -52,8 +53,16 @@ class TestBackup(unittest.TestCase):
         shutil.rmtree(self.tmpdir)
         self.postgresql.stop()
 
+    def assertRegexpIn(self, pattern, container, msg=None):
+        for item in container:
+            if re.search(pattern, item):
+                break
+        else:
+            msg_clause = ' ({})'.format(msg) if msg else ''
+            self.fail('Pattern `{}` not found in container{}'.format(pattern, msg_clause))
+
     def test_run_command_failure(self):
-        with self.assertRaises(subprocess.CalledProcessError):
+        with self.assertRaises(pg_utils.PgError):
             pg_utils.psql('badcommand', 'test', self.conn_info)
 
     def test_list_schemas(self):
@@ -190,9 +199,7 @@ class TestBackup(unittest.TestCase):
         """
         return datetime.date(2016, 1, 4)
 
-    @patch('pgbackup.main.get_today')
-    def test_basic_backups(self, mock_today):
-        mock_today.return_value = self.starting_date()
+    def test_basic_backups(self):
         main.main_backup(self.config)
         self.check_files()
 
@@ -268,6 +275,49 @@ class TestBackup(unittest.TestCase):
         schemas = pg_utils.get_schemas('test', self.conn_info)
         self.assertSetEqual({'newschema', 'public'}, set(schemas))
 
+    def test_multi_part_restore_due_to_includes(self):
+        # Separate schema and database backups will be created; destroy the
+        # database and restore. Also demonstrate that the contents of the public
+        # schema can be restored in this scenario (the concern being that the
+        # public schema will be automatically created in the database creation
+        # step of the restore.
+        pg_utils.psql('create schema newschema', 'test', self.conn_info)
+        pg_utils.psql('create table public.newtable(junk text)', 'test', self.conn_info)
+
+        self.config.set('backup', 'include_schemas', 'public')
+
+        backups = main.main_backup(self.config)
+        self.check_files(daily_count=2, weekly_count=2, monthly_count=2)
+
+        pg_utils.psql('drop database test', 'template1', self.conn_info)
+        databases = pg_utils.get_databases(self.conn_info)
+        self.assertNotIn('test', databases)
+
+        files = [b.filename for b in backups]
+        database_backup_filename = pg_utils.filter_collection(
+            files,
+            include='no_schemas.*daily').pop()
+        schemas_backup_filename = pg_utils.filter_collection(
+            files,
+            include='selected_schemas.*daily').pop()
+
+        # self.fail()
+
+        pg_utils.pg_restore(database_backup_filename, conn_info=self.conn_info)
+        pg_utils.pg_restore(schemas_backup_filename,
+                            database='test', conn_info=self.conn_info)
+
+        databases = pg_utils.get_databases(self.conn_info)
+        self.assertIn('test', databases)
+
+        schemas = pg_utils.get_schemas('test', self.conn_info)
+        self.assertSetEqual({'public'}, set(schemas))
+
+        with self.assertRaises(pg_utils.PgError):
+            pg_utils.psql('select * from public.bad_table', 'test', self.conn_info)
+
+        pg_utils.psql('select * from public.newtable', 'test', self.conn_info)
+
     @patch('pgbackup.main.get_today')
     def test_double_backups(self, mock_today):
         # Test two backups on the same day; second set should override the
@@ -339,6 +389,7 @@ class TestBackup(unittest.TestCase):
     @patch('pgbackup.main.get_today')
     def test_7d_4w_12m(self, mock_today):
         # Takes 2.6 min on my Macbook Pro
+        self.skipTest('Put this test back, but it is TOO slow on CircleCI')
         self._test_d_w_m(mock_today, days_to_keep=7, weeks_to_keep=4,
                          months_to_keep=12, total_days=365,
                          expected_day_changes=365, expected_week_changes=52,

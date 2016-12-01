@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import setup
 from pgbackup import __version__
 
 with open('README.md', 'r') as f:
@@ -23,7 +23,7 @@ kwargs = {
     'packages': ['pgbackup'],
     'install_requires': install_requires,
     'download_url': ('https://github.com/chop-dbhi/'
-                     'pgbackup/tarball/{}'.format( __version__)),
+                     'pgbackup/tarball/{}'.format(__version__)),
     'keywords': ['backup', 'postgres', 'postgresql', 'backup', 'retention policy', 'pg_dump'],
     'classifiers': [
         'Programming Language :: Python',
@@ -42,7 +42,7 @@ kwargs = {
         ]
     },
     # Note: tests require the PostgreSQL binaries (initdb, psql, pg_dump, etc) be in the path
-    'test_suite': 'pgbackup.test_pgbackup',
+    'test_suite': 'tests',
     'tests_require': test_requires
 }
 

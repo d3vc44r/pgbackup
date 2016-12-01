@@ -1,5 +1,8 @@
 # pgbackup
 
+[![Circle CI](https://circleci.com/gh/murphyke/pgbackup/tree/master.svg?style=svg)](https://circleci.com/gh/murphyke/pgbackup/tree/master)
+[![Coverage Status](https://coveralls.io/repos/github/murphyke/pgbackup/badge.svg?branch=master)](https://coveralls.io/github/murphyke/pgbackup?branch=master)
+
 `pgbackup` is a Python package and script that wraps the PostgreSQL logical (SQL-based) backup
 programs `pg_dump` and `pg_dumpall`.
 

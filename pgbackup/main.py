@@ -36,7 +36,6 @@ try:
 except ImportError:
     import ConfigParser as configparser
 
-import glob
 import logging
 import os
 import re
@@ -97,27 +96,6 @@ def read_config(filename, extra_defaults=None):
     config.get('backup', 'backup_dir')
 
     return config
-
-
-def sort_files(file_collection):
-    """ Return list of files sorted by date
-
-    File names are sorted by name, which, if the pattern is suitable, will
-    cause the file names to be sorted by creation date.
-
-    Another option might be to sort on mtime followed by name as a tie-breaker.
-    ctime is not an option because it changes when a fellow hard link is
-    removed.
-    """
-    def keyfunc(fname):
-        return fname
-    return sorted(file_collection, key=keyfunc)
-
-
-def sorted_files(pattern):
-    """Return files matching glob pattern, *effectively* sorted by date
-    """
-    return sort_files(glob.glob(pattern))
 
 
 def _boolify(value):

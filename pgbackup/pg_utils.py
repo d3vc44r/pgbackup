@@ -5,6 +5,19 @@ import subprocess
 
 LOGGER = logging.getLogger(__package__)
 
+class PgError(subprocess.CalledProcessError):
+    def __init__(self, returncode=None, cmd=None, output=None, msg=None):
+        self.returncode = returncode
+        self.cmd = cmd
+        self.output = output
+        self.msg = msg
+
+    def __str__(self):
+        if self.msg:
+            return self.msg
+        else:
+            return "Command '%s' returned non-zero exit status %d" % (self.cmd, self.returncode)
+
 
 def _make_cmd(*args):
     """Normalize args list that may contain empty values or tuples.
@@ -39,22 +52,34 @@ def _optional(*args):
     return args
 
 
-def run_command(cmd):
+def run_pg_command(cmd, database, conn_info):
     """Wrapper around subprocess.checkout_output to report errors properly.
 
-    Raises an exception if the command fails.
+    database and conn_info are used only for error-reporting.
+
+    Raises a PgError exception if the command fails.
 
     :return: output of cmd as a str
     """
     LOGGER.info('Will run: {}'.format(' '.join(cmd)))
     try:
         result = subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError:
-        raise
-        # msg = ('Subprocess failed, cmd was `{cmd}`, '
-        #        'result was `{code}`, output was `{output}`')
-        # sys.exit(msg.format(output=e.output, code=e.returncode,
-        #                     cmd=' '.join(e.cmd)))
+    except subprocess.CalledProcessError as e:
+        if not conn_info:
+            conn_info_str = 'conn_info: none'
+        else:
+            conn_info_str = 'conn_info: {}'.format(conn_info)
+        if not database:
+            database_str = 'database: none'
+        else:
+            database_str = 'database: {}'.format(database)
+        context_str = '{}, {}'.format(database_str, conn_info_str)
+        msg = ('Subprocess failed, cmd was `{cmd}` ({ctx}), '
+               'result was `{code}`, output was `{output}`')
+        raise PgError(msg=msg.format(cmd=' '.join(cmd), ctx=context_str,
+                                     code=e.returncode, output=e.output),
+                      cmd=cmd, returncode=e.returncode)
+
     return result.decode('utf-8')
 
 
@@ -84,7 +109,8 @@ def psql(stmt, database=None, conn_info={}):
                     _optional('-d', database or conn_info.get('username',
                                                               None)),
                     '-c', '{}'.format(stmt))
-    return run_command(cmd)
+
+    return run_pg_command(cmd, database, conn_info)
 
 
 def pg_dump(database, filename, schemas=None, conn_info={}, empty=False):
@@ -131,7 +157,7 @@ def pg_dump(database, filename, schemas=None, conn_info={}, empty=False):
             cmd.append('-n')
             cmd.append(schema)
 
-    run_command(cmd)
+    run_pg_command(cmd, database, conn_info)
 
 
 def pg_dumpall_globals(filename, conn_info):
@@ -152,7 +178,7 @@ def pg_dumpall_globals(filename, conn_info):
                     '--globals-only',
                     '--database=template1',
                     '-f', filename)
-    run_command(cmd)
+    run_pg_command(cmd, None, conn_info)
 
 
 def pg_restore(filename, database=None, conn_info={}):
@@ -188,7 +214,7 @@ def pg_restore(filename, database=None, conn_info={}):
                     '-d', database,
                     filename)
 
-    results = run_command(cmd)
+    results = run_pg_command(cmd, database, conn_info)
     return results
 
 

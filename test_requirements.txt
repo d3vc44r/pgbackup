@@ -3,3 +3,7 @@ mock
 nose
 sqlalchemy
 testing.postgresql
+coverage
+coveralls
+tox-pyenv
+six
