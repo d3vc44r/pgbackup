@@ -190,13 +190,13 @@ class TestBackup(unittest.TestCase):
         """
         return datetime.date(2016, 1, 4)
 
-    @patch('main.get_today')
+    @patch('pgbackup.main.get_today')
     def test_basic_backups(self, mock_today):
         mock_today.return_value = self.starting_date()
         main.main_backup(self.config)
         self.check_files()
 
-    @patch('main.get_today')
+    @patch('pgbackup.main.get_today')
     def test_multiple_schemas(self, mock_today):
         mock_today.return_value = self.starting_date()
         pg_utils.psql('create schema newschema', 'test', self.conn_info)
@@ -268,7 +268,7 @@ class TestBackup(unittest.TestCase):
         schemas = pg_utils.get_schemas('test', self.conn_info)
         self.assertSetEqual({'newschema', 'public'}, set(schemas))
 
-    @patch('main.get_today')
+    @patch('pgbackup.main.get_today')
     def test_double_backups(self, mock_today):
         # Test two backups on the same day; second set should override the
         # first.
@@ -328,7 +328,7 @@ class TestBackup(unittest.TestCase):
         self.assertEqual(week_number_changes, expected_week_changes)
         self.assertEqual(month_number_changes, expected_month_changes)
 
-    @patch('main.get_today')
+    @patch('pgbackup.main.get_today')
     def test_1d_1w_1m(self, mock_today):
         # Takes 15 sec on my Macbook Pro
         self._test_d_w_m(mock_today, days_to_keep=1, weeks_to_keep=1,
@@ -336,7 +336,7 @@ class TestBackup(unittest.TestCase):
                          expected_day_changes=32, expected_week_changes=4,
                          expected_month_changes=1)
 
-    @patch('main.get_today')
+    @patch('pgbackup.main.get_today')
     def test_7d_4w_12m(self, mock_today):
         # Takes 2.6 min on my Macbook Pro
         self._test_d_w_m(mock_today, days_to_keep=7, weeks_to_keep=4,
